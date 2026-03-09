@@ -110,6 +110,9 @@
   td.sm{color:var(--muted);font-size:11px;}
   td.adic{color:var(--muted);font-size:10px;}
   .new-badge{display:inline-block;background:var(--warn);color:#0d0f14;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle;}
+  .edit-col{width:32px;text-align:center;}
+  .edit-row-btn{background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;border-radius:4px;opacity:0.5;transition:opacity 0.15s;}
+  .edit-row-btn:hover{opacity:1;background:rgba(255,184,79,0.2);}
   .check-col{width:32px;text-align:center;}
   .check-col input{width:13px;height:13px;accent-color:var(--accent);cursor:pointer;}
 
@@ -253,7 +256,12 @@
 
   <div id="addTab">
     <div style="max-width:680px;margin:0 auto;">
-      <div class="add-title">+ Novo Registo</div>
+      <div id="editBanner" style="display:none;background:rgba(255,184,79,0.15);border:1px solid var(--warn);border-radius:10px;padding:12px 16px;margin-bottom:16px;align-items:center;gap:12px;">
+        <span style="font-size:16px;">✏️</span>
+        <span id="editBannerText" style="flex:1;font-size:13px;color:var(--warn);font-weight:600;"></span>
+        <button onclick="cancelEdit()" style="background:none;border:1px solid var(--warn);color:var(--warn);border-radius:7px;padding:5px 12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;">✕ Cancelar edição</button>
+      </div>
+      <div class="add-title" id="formTitle">+ Novo Registo</div>
       <div class="add-subtitle">Guarda diretamente no Excel do SharePoint — visível para toda a equipa imediatamente</div>
       <div class="form-grid">
         <div class="form-field"><label>Fornecedor *</label><input type="text" id="newSupplier" placeholder="ex: CJ FOODS"></div>
@@ -536,8 +544,9 @@ function renderRows(rows,reset) {
       <td class="ref">${r.REFERENCE}</td><td class="hs">${r.HSCODE}</td>
       <td class="sm">${r.ORIGIN}</td><td class="sm">${r.DU}</td>
       <td class="adic">${r.Adicional}</td><td class="adic">${r['CD AW']}</td>
-      <td class="desc" title="${r.DESCRIPTION}">${r.DESCRIPTION}</td>`;
-    tr.addEventListener('click',e=>{if(e.target.type!=='checkbox')toggleItem(null,key);});
+      <td class="desc" title="${r.DESCRIPTION}">${r.DESCRIPTION}</td>
+      <td class="edit-col"><button class="edit-row-btn" onclick="event.stopPropagation();editRecord(allData.find(x=>x.REFERENCE===\`${r.REFERENCE}\`&&x.HSCODE===\`${r.HSCODE}\`))" title="Editar">✏️</button></td>`;
+    tr.addEventListener('click',e=>{if(e.target.type!=='checkbox'&&!e.target.classList.contains('edit-row-btn'))toggleItem(null,key);});
     tbody.appendChild(tr);
   });
 }
@@ -600,34 +609,106 @@ function copyTable(){
   }catch{navigator.clipboard.writeText(text).then(()=>showToast('✓ Copiado!'));}
 }
 
+let editingRow = null; // row number in Excel being edited (1-based)
+
 async function saveRecord(){
-  const supplier=document.getElementById('newSupplier').value.trim().toUpperCase();
-  const ref=document.getElementById('newRef').value.trim().toUpperCase();
-  const hscode=document.getElementById('newHscode').value.trim();
-  const desc=document.getElementById('newDesc').value.trim().toUpperCase();
+  const supplier = document.getElementById('newSupplier').value.trim().toUpperCase();
+  const ref      = document.getElementById('newRef').value.trim().toUpperCase();
+  const hscode   = document.getElementById('newHscode').value.trim();
+  const desc     = document.getElementById('newDesc').value.trim().toUpperCase();
   if(!supplier||!ref||!hscode||!desc){showFormError('Preenche os campos obrigatórios (*)');return;}
-  const record={SUPLIER:supplier,REFERENCE:ref,HSCODE:hscode,DESCRIPTION:desc,
-    ORIGIN:document.getElementById('newOrigin').value.trim().toUpperCase(),
-    DU:document.getElementById('newDU').value.trim().toUpperCase(),
-    Adicional:document.getElementById('newAdicional').value.trim(),
-    'CD AW':document.getElementById('newCDAW').value.trim(),_new:true};
-  const btn=document.getElementById('saveBtn');
-  btn.disabled=true;btn.textContent='⏳ A guardar...';
-  try{
-    await appendRow(record);
-    allData.unshift(record);populateFilters();
-    document.getElementById('newRecordsSection').style.display='block';
-    const tbody=document.getElementById('newRecordsList');
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${record.SUPLIER}</td><td>${record.REFERENCE}</td><td>${record.HSCODE}</td><td>${record.DESCRIPTION}</td><td>—</td>`;
-    tbody.insertBefore(tr,tbody.firstChild);
+
+  const record = {
+    SUPLIER: supplier, REFERENCE: ref, HSCODE: hscode, DESCRIPTION: desc,
+    ORIGIN:    document.getElementById('newOrigin').value.trim().toUpperCase(),
+    DU:        document.getElementById('newDU').value.trim().toUpperCase(),
+    Adicional: document.getElementById('newAdicional').value.trim(),
+    'CD AW':   document.getElementById('newCDAW').value.trim()
+  };
+
+  // Check for duplicate (skip check if ref is 'NO REF' or if editing)
+  if (!editingRow && ref !== 'NO REF') {
+    const duplicate = allData.find(r => r.REFERENCE === ref && r.HSCODE === hscode);
+    if (duplicate) {
+      showFormError(`⚠ Já existe um registo com REF "${ref}" e HS Code "${hscode}" (${duplicate.SUPLIER} — ${duplicate.DESCRIPTION})`);
+      return;
+    }
+    // Also warn if same REF but different HS Code
+    const sameRef = allData.find(r => r.REFERENCE === ref);
+    if (sameRef) {
+      const ok = confirm(`A referência "${ref}" já existe com HS Code ${sameRef.HSCODE} (${sameRef.SUPLIER}).
+
+Tens a certeza que queres criar uma nova entrada com HS Code diferente?`);
+      if (!ok) return;
+    }
+  }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = editingRow ? '⏳ A atualizar...' : '⏳ A guardar...';
+
+  try {
+    if (editingRow) {
+      // EDIT MODE — update existing row in Excel with red highlight
+      await updateRow(editingRow, record);
+      // Update in-memory data
+      const idx = allData.findIndex(r => r._row === editingRow);
+      if (idx >= 0) allData[idx] = {...record, _row: editingRow};
+      document.getElementById('formSuccess').textContent = '✓ Registo atualizado no SharePoint!';
+      editingRow = null;
+      btn.textContent = '💾 Guardar no SharePoint';
+      document.getElementById('saveBtn').style.background = '';
+      document.getElementById('editBanner').style.display = 'none';
+    } else {
+      // NEW RECORD
+      record._new = true;
+      await appendRow(record);
+      allData.unshift(record);
+      document.getElementById('newRecordsSection').style.display = 'block';
+      const tbody = document.getElementById('newRecordsList');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${record.SUPLIER}</td><td>${record.REFERENCE}</td><td>${record.HSCODE}</td><td>${record.DESCRIPTION}</td><td>—</td>`;
+      tbody.insertBefore(tr, tbody.firstChild);
+      document.getElementById('formSuccess').textContent = '✓ Registo guardado no SharePoint!';
+    }
+    populateFilters(); applyFilters();
     document.getElementById('formSuccess').classList.add('visible');
     setTimeout(()=>document.getElementById('formSuccess').classList.remove('visible'),4000);
     clearForm();
-    setSyncStatus('ok',allData.length.toLocaleString()+' registos · SharePoint');
-    showToast('✓ Guardado no SharePoint!');
-  }catch(e){showFormError('Erro: '+e.message);console.error(e);}
-  btn.disabled=false;btn.textContent='💾 Guardar no SharePoint';
+    setSyncStatus('ok', allData.length.toLocaleString() + ' registos · SharePoint');
+    showToast(editingRow ? '✓ Atualizado!' : '✓ Guardado!');
+  } catch(e) {
+    showFormError('Erro: ' + e.message);
+    console.error(e);
+  }
+  btn.disabled = false;
+  if (!editingRow) btn.textContent = '💾 Guardar no SharePoint';
+}
+
+function editRecord(item) {
+  showTab('add');
+  editingRow = item._row;
+  document.getElementById('newSupplier').value  = item.SUPLIER || '';
+  document.getElementById('newRef').value        = item.REFERENCE || '';
+  document.getElementById('newHscode').value     = item.HSCODE || '';
+  document.getElementById('newDesc').value       = item.DESCRIPTION || '';
+  document.getElementById('newOrigin').value     = item.ORIGIN || '';
+  document.getElementById('newDU').value         = item.DU || '';
+  document.getElementById('newAdicional').value  = item.Adicional || '';
+  document.getElementById('newCDAW').value       = item['CD AW'] || '';
+  document.getElementById('saveBtn').textContent = '✏️ Atualizar Registo';
+  document.getElementById('saveBtn').style.background = 'var(--warn)';
+  document.getElementById('editBanner').style.display = 'flex';
+  document.getElementById('editBannerText').textContent = `A editar: ${item.REFERENCE} — ${item.DESCRIPTION}`;
+  window.scrollTo(0,0);
+}
+
+function cancelEdit() {
+  editingRow = null;
+  clearForm();
+  document.getElementById('saveBtn').textContent = '💾 Guardar no SharePoint';
+  document.getElementById('saveBtn').style.background = '';
+  document.getElementById('editBanner').style.display = 'none';
 }
 
 async function appendRow(record){
@@ -641,6 +722,33 @@ async function appendRow(record){
     method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({values})
   });
   if(!r.ok){const t=await r.text();throw new Error(t);}
+}
+
+async function updateRow(rowNum, record) {
+  const sheets = await graphGet(`/drives/${driveId}/items/${fileId}/workbook/worksheets`);
+  const sheet = sheets.value.find(s => s.name.includes('HSCODE') || s.name.includes('2025')) || sheets.value[0];
+  const sheetEnc = encodeURIComponent(sheet.name);
+  const addr = `A${rowNum}:I${rowNum}`;
+  const values = [[record.SUPLIER, record.ORIGIN, record.DU, record.REFERENCE, record.HSCODE, record.Adicional, record['CD AW'], record.DESCRIPTION, '']];
+  const token = await getToken();
+
+  // Write values
+  const r = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('${sheetEnc}')/range(address='${addr}')`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values })
+  });
+  if (!r.ok) { const t = await r.text(); throw new Error(t); }
+
+  // Highlight changed cells in red (columns A-H = 0-7)
+  try {
+    const colorBody = { format: { fill: { color: '#FFE0E0' }, font: { color: '#CC0000' } } };
+    await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/workbook/worksheets('${sheetEnc}')/range(address='${addr}')`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: { fill: { color: '#FFE0E0' }, font: { color: '#CC0000', bold: true } } })
+    });
+  } catch(e) { console.warn('Could not apply red highlight:', e); }
 }
 
 function showTab(tab){
