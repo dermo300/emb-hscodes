@@ -403,15 +403,33 @@ async function onLoggedIn() {
 }
 
 async function loadData() {
-  setLoadingMsg('A localizar ficheiro...');
+  setLoadingMsg('A ligar ao SharePoint...');
   const site = await graphGet('/sites/ntcseaworld.sharepoint.com:/sites/PartilhaNTC');
   const drives = await graphGet('/sites/' + site.id + '/drives');
   const drive = drives.value.find(d => d.driveType === 'documentLibrary') || drives.value[0];
   driveId = drive.id;
 
-  const search = await graphGet(`/drives/${driveId}/root/search(q='${encodeURIComponent("HS CODES")}')`);
-  const file = search.value.find(f => f.name && f.name.includes('HS CODES') && f.name.endsWith('.xlsx'));
-  if (!file) throw new Error('Ficheiro "' + FILE_NAME + '" não encontrado no SharePoint');
+  // Use direct item lookup by path
+  setLoadingMsg('A localizar ficheiro Excel...');
+  let file = null;
+  try {
+    // Try direct path first
+    file = await graphGet(`/drives/${driveId}/root:/EMB FOOD - HS CODES.xlsx:`);
+  } catch(e) {}
+  
+  if (!file) {
+    try {
+      file = await graphGet(`/drives/${driveId}/root:/Despachos/Import Project/EMB FOOD - HS CODES.xlsx:`);
+    } catch(e) {}
+  }
+
+  if (!file) {
+    // Fallback: search
+    const search = await graphGet(`/drives/${driveId}/root/search(q='EMB FOOD')`);
+    file = search.value.find(f => f.name && f.name.includes('HS CODES') && f.name.endsWith('.xlsx'));
+  }
+
+  if (!file) throw new Error('Ficheiro Excel não encontrado. Verifica se está no SharePoint.');
   fileId = file.id;
 
   setLoadingMsg('A ler dados do Excel...');
