@@ -215,6 +215,23 @@
             <select id="filterDU"><option value="">Todos os DU</option></select>
           </div>
         </div>
+
+        <!-- BATCH SEARCH PANEL -->
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 14px;margin-bottom:10px;">
+          <div id="batchHeader" onclick="toggleBatch()" style="cursor:pointer;font-size:12px;color:rgba(255,255,255,0.55);display:flex;justify-content:space-between;user-select:none;">
+            <span>📋 Pesquisa em lote — cola várias referências separadas por espaço</span>
+            <span id="batchArrow">▼</span>
+          </div>
+          <div id="batchBody" style="display:none;padding:10px 0 4px 0;">
+            <textarea id="batchInput" placeholder="Ex: D096033 D096042 D096152&#10;ou: D096033, D096042, D096152" rows="3" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:8px;padding:10px;font-family:'Syne',sans-serif;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button class="btn btn-primary" style="flex:1" onclick="runBatchSearch()">🔍 Gerar Tabela</button>
+              <button class="btn btn-secondary" onclick="clearBatch()">✕ Limpar</button>
+            </div>
+            <div id="batchResult" style="margin-top:8px;font-size:12px;"></div>
+          </div>
+        </div>
+
         <div class="results-header">
           <span>Resultados: <strong id="resultCount">0</strong></span>
           <span style="margin-left:auto">clique para selecionar</span>
@@ -549,7 +566,7 @@ function renderRows(rows,reset) {
       <td class="sm">${r.ORIGIN}</td><td class="sm">${r.DU}</td>
       <td class="adic">${r.Adicional}</td><td class="adic">${r['CD AW']}</td>
       <td class="desc" title="${r.DESCRIPTION}">${r.DESCRIPTION}</td>
-      <td class="edit-col"><button class="edit-row-btn" onclick="event.stopPropagation();editRecord(allData.find(x=>x.REFERENCE===\`${r.REFERENCE}\`&&x.HSCODE===\`${r.HSCODE}\`))" title="Editar">✏️</button></td>`;
+      <td class="edit-col"><button class="edit-row-btn" onclick="event.stopPropagation();editRecord(allData.find(x=>x._row===${r._row||0})||allData.find(x=>x.REFERENCE===\`${r.REFERENCE}\`&&x.HSCODE===\`${r.HSCODE}\`))" title="Editar">✏️</button></td>`;
     tr.addEventListener('click',e=>{if(e.target.type!=='checkbox'&&!e.target.classList.contains('edit-row-btn'))toggleItem(null,key);});
     tbody.appendChild(tr);
   });
@@ -769,7 +786,7 @@ function toggleBatch() {
 function clearBatch() {
   document.getElementById('batchInput').value = '';
   document.getElementById('batchResult').textContent = '';
-  selectedItems.clear();
+  selected.clear();
   updatePreview();
 }
 
@@ -778,7 +795,7 @@ function runBatchSearch() {
   const refs = raw.split(/[\s,;]+/).map(r => r.trim().toUpperCase()).filter(Boolean);
   if (!refs.length) return;
 
-  selectedItems.clear();
+  selected.clear();
   const ordered = [];
   const notFound = [];
 
@@ -788,8 +805,8 @@ function runBatchSearch() {
     if (matches.length > 0) {
       matches.forEach(m => {
         const key = m.REFERENCE + '||' + m.HSCODE;
-        if (!selectedItems.has(key)) {
-          selectedItems.set(key, m);
+        if (!selected.has(key)) {
+          selected.set(key, m);
           ordered.push(m);
         }
       });
@@ -799,8 +816,8 @@ function runBatchSearch() {
   }
 
   // Rebuild selectedItems in order
-  selectedItems.clear();
-  ordered.forEach(m => selectedItems.set(m.REFERENCE + '||' + m.HSCODE, m));
+  selected.clear();
+  ordered.forEach(m => selected.set(m.REFERENCE + '||' + m.HSCODE, m));
 
   updatePreview();
   const msg = document.getElementById('batchResult');
