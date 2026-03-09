@@ -114,6 +114,9 @@
   .edit-row-btn{background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;border-radius:4px;opacity:0.5;transition:opacity 0.15s;}
   .edit-row-btn:hover{opacity:1;background:rgba(255,184,79,0.2);}
   .check-col{width:32px;text-align:center;}
+  .batch-wrap{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 14px;margin-bottom:10px;}
+  .batch-header{cursor:pointer;font-size:12px;color:rgba(255,255,255,0.55);display:flex;justify-content:space-between;user-select:none;}
+  .batch-header:hover{color:rgba(255,255,255,0.8);}
   .check-col input{width:13px;height:13px;accent-color:var(--accent);cursor:pointer;}
 
   /* RIGHT */
@@ -232,6 +235,12 @@
 
       <div class="right-panel">
         <div class="panel-title">Selecionados <span class="sel-count" id="selectedCount">0</span></div>
+        <div class="copy-section" style="padding:8px 0 4px 0;">
+          <div class="btn-row">
+            <button class="btn btn-secondary" onclick="clearAll()">✕ Limpar</button>
+            <button class="btn btn-primary" id="copyBtn" onclick="copyTable()" disabled>📋 Copiar Tabela</button>
+          </div>
+        </div>
         <div class="preview-wrap">
           <div class="empty-state" id="emptyState">
             <div class="empty-icon">📋</div>
@@ -244,12 +253,7 @@
             </table>
           </div>
         </div>
-        <div class="copy-section">
-          <div class="btn-row">
-            <button class="btn btn-secondary" onclick="clearAll()">✕ Limpar</button>
-            <button class="btn btn-primary" id="copyBtn" onclick="copyTable()" disabled>📋 Copiar Tabela</button>
-          </div>
-        </div>
+
       </div>
     </div>
   </div>
@@ -617,6 +621,7 @@ async function saveRecord(){
   const hscode   = document.getElementById('newHscode').value.trim();
   const desc     = document.getElementById('newDesc').value.trim().toUpperCase();
   if(!supplier||!ref||!hscode||!desc){showFormError('Preenche os campos obrigatórios (*)');return;}
+  if(!/^\d{10}$/.test(hscode)){showFormError('⚠ O HS Code deve ter exatamente 10 algarismos');return;}
 
   const record = {
     SUPLIER: supplier, REFERENCE: ref, HSCODE: hscode, DESCRIPTION: desc,
@@ -712,7 +717,9 @@ function cancelEdit() {
 }
 
 async function appendRow(record){
-  const sheetEnc=encodeURIComponent(SHEET_NAME);
+  const sheets2 = await graphGet(`/drives/${driveId}/items/${fileId}/workbook/worksheets`);
+  const sheet2 = sheets2.value.find(s => s.name.includes('HSCODE') || s.name.includes('2025')) || sheets2.value[0];
+  const sheetEnc = encodeURIComponent(sheet2.name);
   const range=await graphGet(`/drives/${driveId}/items/${fileId}/workbook/worksheets('${sheetEnc}')/usedRange`);
   const nextRow=range.rowCount+1;
   const addr='A'+nextRow+':I'+nextRow;
@@ -749,6 +756,61 @@ async function updateRow(rowNum, record) {
       body: JSON.stringify({ format: { fill: { color: '#FFE0E0' }, font: { color: '#CC0000', bold: true } } })
     });
   } catch(e) { console.warn('Could not apply red highlight:', e); }
+}
+
+function toggleBatch() {
+  const body = document.getElementById('batchBody');
+  const arrow = document.getElementById('batchArrow');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  arrow.textContent = open ? '▲' : '▼';
+}
+
+function clearBatch() {
+  document.getElementById('batchInput').value = '';
+  document.getElementById('batchResult').textContent = '';
+  selectedItems.clear();
+  updatePreview();
+}
+
+function runBatchSearch() {
+  const raw = document.getElementById('batchInput').value;
+  const refs = raw.split(/[\s,;]+/).map(r => r.trim().toUpperCase()).filter(Boolean);
+  if (!refs.length) return;
+
+  selectedItems.clear();
+  const ordered = [];
+  const notFound = [];
+
+  for (const ref of refs) {
+    // Find matching records in order
+    const matches = allData.filter(r => r.REFERENCE.toUpperCase() === ref);
+    if (matches.length > 0) {
+      matches.forEach(m => {
+        const key = m.REFERENCE + '||' + m.HSCODE;
+        if (!selectedItems.has(key)) {
+          selectedItems.set(key, m);
+          ordered.push(m);
+        }
+      });
+    } else {
+      notFound.push(ref);
+    }
+  }
+
+  // Rebuild selectedItems in order
+  selectedItems.clear();
+  ordered.forEach(m => selectedItems.set(m.REFERENCE + '||' + m.HSCODE, m));
+
+  updatePreview();
+  const msg = document.getElementById('batchResult');
+  if (notFound.length) {
+    msg.textContent = `⚠ Não encontradas: ${notFound.join(', ')}`;
+    msg.style.color = 'var(--warn)';
+  } else {
+    msg.textContent = `✓ ${ordered.length} referência(s) adicionadas ao quadro`;
+    msg.style.color = 'var(--accent2)';
+  }
 }
 
 function showTab(tab){
