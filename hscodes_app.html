@@ -433,7 +433,13 @@ async function loadData() {
   fileId = file.id;
 
   setLoadingMsg('A ler dados do Excel...');
-  const range = await graphGet(`/drives/${driveId}/items/${fileId}/workbook/worksheets('${encodeURIComponent(SHEET_NAME)}')/usedRange`);
+  
+  // Try to find the correct worksheet
+  let range = null;
+  const sheets = await graphGet(`/drives/${driveId}/items/${fileId}/workbook/worksheets`);
+  const sheet = sheets.value.find(s => s.name.includes('HSCODE') || s.name.includes('2025')) || sheets.value[0];
+  setLoadingMsg('A ler folha: ' + sheet.name + '...');
+  range = await graphGet(`/drives/${driveId}/items/${fileId}/workbook/worksheets('${encodeURIComponent(sheet.name)}')/usedRange`);
   parseData(range.values);
 }
 
