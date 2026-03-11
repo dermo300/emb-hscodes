@@ -618,12 +618,12 @@ function updatePreview(){
 
 function copyTable(){
   if(!selected.size)return;
-  let text='Fornecedor\tREF\tHS Code\tDescrição\n';
-  selected.forEach(item=>{text+=`${item.SUPLIER}	${item.REFERENCE}	${item.HSCODE}	${item.DESCRIPTION}
+  let text='Fornecedor\tREF\tHS Code\tAdicional\tDescrição\n';
+  selected.forEach(item=>{text+=`${item.SUPLIER}	${item.REFERENCE}	${item.HSCODE}	${item.Adicional||''}	${item.DESCRIPTION}
 `;});
-  let html='<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;"><thead><tr style="background:#0d1b2a;color:#4fffb0;"><th>Fornecedor</th><th>REF</th><th>HS Code</th><th>Descrição</th></tr></thead><tbody>';
+  let html='<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;"><thead><tr style="background:#0d1b2a;color:#4fffb0;"><th>Fornecedor</th><th>REF</th><th>HS Code</th><th>Adicional</th><th>Descrição</th></tr></thead><tbody>';
   let even=false;
-  selected.forEach(item=>{html+=`<tr style="background:${even?'#f5f5f5':'#fff'}"><td>${item.SUPLIER}</td><td>${item.REFERENCE}</td><td>${item.HSCODE}</td><td>${item.DESCRIPTION}</td></tr>`;even=!even;});
+  selected.forEach(item=>{html+=`<tr style="background:${even?'#f5f5f5':'#fff'}"><td>${item.SUPLIER}</td><td>${item.REFERENCE}</td><td>${item.HSCODE}</td><td>${item.Adicional||''}</td><td>${item.DESCRIPTION}</td></tr>`;even=!even;});
   html+='</tbody></table>';
   try{
     navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([text],{type:'text/plain'})})]).then(()=>showToast('✓ Tabela copiada!'));
