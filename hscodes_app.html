@@ -582,7 +582,7 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').re
 
 function toggleItem(e,key){
   if(selected.has(key))selected.delete(key);
-  else{const item=allData.find(r=>`${r.REFERENCE}||${r.HSCODE}`===key);if(item)selected.set(key,item);}
+  else{const item=allData.find(r=>`${r.REFERENCE}||${r.HSCODE}`===key);if(item){selected.set(key,item);lastSelectedItem=item;}}
   document.querySelectorAll(`tr[data-key="${CSS.escape(key)}"]`).forEach(tr=>{
     tr.classList.toggle('selected',selected.has(key));
     const cb=tr.querySelector('input[type=checkbox]');if(cb)cb.checked=selected.has(key);
@@ -618,7 +618,7 @@ function updatePreview(){
   tbody.innerHTML='';
   selected.forEach((item,key)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${item.SUPLIER}</td><td>${item.REFERENCE}</td><td>${item.HSCODE}</td><td title="${item.DESCRIPTION}">${item.DESCRIPTION}</td><td class="del-cell"><button class="dup-btn" onclick="duplicateRecord(selected.get('${esc(key)}'))" title="Duplicar registo">⧉</button><button class="del-btn" onclick="removeSelected('${esc(key)}')">×</button></td>`;
+    tr.innerHTML=`<td>${item.SUPLIER}</td><td>${item.REFERENCE}</td><td>${item.HSCODE}</td><td title="${item.DESCRIPTION}">${item.DESCRIPTION}</td><td class="del-cell"><button class="dup-btn" onclick="lastSelectedItem=selected.get('${esc(key)}');duplicateRecord(lastSelectedItem)" title="Duplicar registo">⧉</button><button class="del-btn" onclick="removeSelected('${esc(key)}')">×</button></td>`;
     tbody.appendChild(tr);
   });
 }
@@ -638,6 +638,7 @@ function copyTable(){
 }
 
 let editingRow = null; // row number in Excel being edited (1-based)
+let lastSelectedItem = null; // last item clicked/selected by user
 
 async function saveRecord(){
   const supplier = document.getElementById('newSupplier').value.trim().toUpperCase();
@@ -767,8 +768,8 @@ function duplicateRecord(item) {
 
 function duplicateFromSelected() {
   if (selected.size === 0) { showToast('Seleciona primeiro um registo'); return; }
-  const first = selected.values().next().value;
-  duplicateRecord(first);
+  if (!lastSelectedItem) { showToast('Clica num registo para o selecionar'); return; }
+  duplicateRecord(lastSelectedItem);
 }
 
 async function appendRow(record){
