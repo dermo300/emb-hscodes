@@ -559,7 +559,7 @@ function renderRows(rows,reset) {
   const tbody=document.getElementById('tableBody');
   if(reset)tbody.innerHTML='';
   rows.forEach(r=>{
-    const key=`${r.REFERENCE}||${r.HSCODE}`;
+    const key=`${r._row||0}||${r.REFERENCE}||${r.HSCODE}`;
     const isSel=selected.has(key);
     const tr=document.createElement('tr');
     if(isSel)tr.classList.add('selected');
@@ -582,7 +582,7 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').re
 
 function toggleItem(e,key){
   if(selected.has(key))selected.delete(key);
-  else{const item=allData.find(r=>`${r.REFERENCE}||${r.HSCODE}`===key);if(item){selected.set(key,item);lastSelectedItem=item;}}
+  else{const item=allData.find(r=>`${r._row||0}||${r.REFERENCE}||${r.HSCODE}`===key);if(item){selected.set(key,item);lastSelectedItem=item;}}
   document.querySelectorAll(`tr[data-key="${CSS.escape(key)}"]`).forEach(tr=>{
     tr.classList.toggle('selected',selected.has(key));
     const cb=tr.querySelector('input[type=checkbox]');if(cb)cb.checked=selected.has(key);
@@ -843,7 +843,7 @@ function runBatchSearch() {
     const matches = allData.filter(r => r.REFERENCE.toUpperCase() === ref);
     if (matches.length > 0) {
       matches.forEach(m => {
-        const key = m.REFERENCE + '||' + m.HSCODE;
+        const key = (m._row||0) + '||' + m.REFERENCE + '||' + m.HSCODE;
         if (!selected.has(key)) {
           selected.set(key, m);
           ordered.push(m);
@@ -856,7 +856,7 @@ function runBatchSearch() {
 
   // Rebuild selectedItems in order
   selected.clear();
-  ordered.forEach(m => selected.set(m.REFERENCE + '||' + m.HSCODE, m));
+  ordered.forEach(m => selected.set((m._row||0) + '||' + m.REFERENCE + '||' + m.HSCODE, m));
 
   updatePreview();
   const msg = document.getElementById('batchResult');
