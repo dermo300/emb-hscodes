@@ -369,13 +369,18 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ACCESS CODE — muda este código quando quiseres
-const ACCESS_CODE = 'EMBFoodSW2026';
+// Access verification using SHA-256 hash
+const ACCESS_HASH = '6660c866ff3dcbf45dfc9a52f4515b4f6fa7ef16aabd9bd7c3ade1398344c807';
 
-function checkAccess() {
-  const input = document.getElementById('accessCode').value.trim().toUpperCase();
+async function checkAccess() {
+  const input = document.getElementById('accessCode').value.trim();
   const err = document.getElementById('accessError');
-  if (input === ACCESS_CODE.toUpperCase()) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  if (hashHex === ACCESS_HASH) {
     document.getElementById('accessScreen').style.display = 'none';
     sessionStorage.setItem('emb_access', '1');
   } else {
