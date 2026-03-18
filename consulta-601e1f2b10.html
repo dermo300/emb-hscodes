@@ -77,9 +77,35 @@
 
   /* READONLY NOTICE */
   .readonly-notice{background:rgba(255,184,79,0.08);border:1px solid rgba(255,184,79,0.2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--warn);text-align:center;}
+
+  /* ACCESS SCREEN */
+  .access-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;}
+  .access-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px 36px;width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+  .access-logo{font-size:28px;font-weight:800;margin-bottom:6px;}
+  .access-logo span{color:var(--accent);}
+  .access-subtitle{color:var(--sub);font-size:13px;margin-bottom:28px;}
+  .access-input{width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:10px;padding:12px 16px;color:var(--text);font-family:'Syne',sans-serif;font-size:18px;text-align:center;letter-spacing:6px;outline:none;transition:border 0.2s;margin-bottom:12px;}
+  .access-input:focus{border-color:rgba(79,255,176,0.5);}
+  .access-btn{width:100%;background:var(--accent);color:#0a0f1a;border:none;border-radius:10px;padding:12px;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:background 0.15s;margin-bottom:10px;}
+  .access-btn:hover{background:#3de09a;}
+  .access-error{color:#ff6b6b;font-size:13px;height:18px;transition:opacity 0.2s;}
+  .access-hint{color:var(--sub);font-size:11px;margin-top:8px;}
 </style>
 </head>
 <body>
+
+<!-- ACCESS SCREEN -->
+<div class="access-screen" id="accessScreen">
+  <div class="access-card">
+    <div class="access-logo"><span>EMB</span>Food</div>
+    <div class="access-subtitle">HS Codes · Base de dados NTC<br>Introduz o código de acesso</div>
+    <input type="password" class="access-input" id="accessCode" placeholder="••••••" maxlength="20"
+      onkeydown="if(event.key==='Enter')checkAccess()">
+    <button class="access-btn" onclick="checkAccess()">Entrar</button>
+    <div class="access-error" id="accessError"></div>
+    <div class="access-hint">Contacta a NTC para obter o código</div>
+  </div>
+</div>
 
 <div class="header">
   <div class="logo"><span>EMB</span>Food</div>
@@ -341,6 +367,28 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ACCESS CODE — muda este código quando quiseres
+const ACCESS_CODE = 'EMBFoodSW2026';
+
+function checkAccess() {
+  const input = document.getElementById('accessCode').value.trim().toUpperCase();
+  const err = document.getElementById('accessError');
+  if (input === ACCESS_CODE.toUpperCase()) {
+    document.getElementById('accessScreen').style.display = 'none';
+    sessionStorage.setItem('emb_access', '1');
+  } else {
+    err.textContent = '⚠ Código incorreto. Tenta novamente.';
+    document.getElementById('accessCode').value = '';
+    document.getElementById('accessCode').focus();
+    setTimeout(() => err.textContent = '', 3000);
+  }
+}
+
+// Check if already authenticated this session
+if (sessionStorage.getItem('emb_access') === '1') {
+  document.getElementById('accessScreen').style.display = 'none';
 }
 
 init();
