@@ -692,6 +692,7 @@ Tens a certeza que queres criar uma nova entrada com HS Code diferente?`);
     } else {
       // NEW RECORD
       record._new = true;
+      record._row = -(Date.now()); // unique negative ID for new records
       await appendRow(record);
       allData.unshift(record);
       document.getElementById('newRecordsSection').style.display = 'block';
