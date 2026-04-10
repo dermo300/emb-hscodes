@@ -181,6 +181,28 @@
   ::-webkit-scrollbar{width:5px;}
   ::-webkit-scrollbar-track{background:transparent;}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+  /* BATCH ADD GRID */
+  #batchAddTab{display:none;flex:1;overflow-y:auto;padding:28px 32px;}
+  #batchAddTab.visible{display:block;}
+  .batch-grid-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .batch-grid{border-collapse:collapse;width:100%;font-size:12px;min-width:860px;}
+  .batch-grid th{background:var(--surface2);padding:7px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);border-bottom:1px solid var(--border);white-space:nowrap;}
+  .batch-grid td{padding:0;border-bottom:1px solid rgba(42,48,69,0.4);border-right:1px solid rgba(42,48,69,0.3);}
+  .batch-grid td:last-child{border-right:none;}
+  .batch-grid td input{width:100%;padding:6px 9px;background:transparent;border:none;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;min-width:60px;}
+  .batch-grid td input:focus{background:rgba(79,255,176,0.06);box-shadow:inset 0 0 0 1px rgba(79,255,176,0.4);}
+  .batch-grid td.row-num-cell{color:var(--muted);font-size:11px;text-align:center;padding:0 8px;background:var(--surface2);min-width:30px;font-family:'DM Mono',monospace;border-right:1px solid var(--border);}
+  .batch-grid tr.row-saved{background:rgba(79,255,176,0.06);}
+  .batch-grid tr.row-err{background:rgba(255,95,109,0.07);}
+  .batch-grid .del-row-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:3px 8px;transition:color 0.15s;line-height:1;}
+  .batch-grid .del-row-btn:hover{color:var(--danger);}
+  .batch-status-cell{padding:0 5px !important;text-align:center;min-width:100px;white-space:nowrap;}
+  .bst{font-size:10px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:4px;display:inline-block;}
+  .bst-ok{color:var(--accent);background:rgba(79,255,176,0.12);}
+  .bst-err{color:var(--danger);background:rgba(255,95,109,0.12);}
+  .bst-saving{color:var(--warn);background:rgba(255,184,79,0.12);}
+  .bst-dup{color:var(--warn);background:rgba(255,184,79,0.12);}
 </style>
 </head>
 <body>
@@ -205,6 +227,7 @@
   <div class="header-btns">
     <button class="hbtn active" id="tabSearchBtn" onclick="showTab('search')">🔍 Pesquisa</button>
     <button class="hbtn" id="tabAddBtn" onclick="showTab('add')">＋ Novo Registo</button>
+    <button class="hbtn" id="tabBatchAddBtn" onclick="showTab('batchAdd')">📋 Novo em Lote</button>
     <button class="hbtn hbtn-dup" id="tabDupBtn" onclick="duplicateFromSelected()" title="Cria novo registo baseado no selecionado" style="display:none">⧉ Duplicar Selecionado</button>
     <div class="user-chip">👤 <span id="userName">—</span></div>
     <button class="logout-btn" onclick="doLogout()">Sair</button>
@@ -323,6 +346,39 @@
           </table>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="batchAddTab">
+    <div style="max-width:1140px;margin:0 auto;">
+      <div class="add-title">📋 Novo Registo em Lote</div>
+      <div class="add-subtitle">Cola diretamente do Excel (Ctrl+V numa célula) · Tab/Enter para navegar · preenche e guarda múltiplos HS Codes em simultâneo</div>
+      <div class="batch-grid-wrap">
+        <table class="batch-grid">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Fornecedor *</th>
+              <th>Referência *</th>
+              <th>HS Code *</th>
+              <th>Descrição *</th>
+              <th>Origem</th>
+              <th>DU</th>
+              <th>Adicional</th>
+              <th>CD AW</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="batchAddBody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="addBatchRows(5)" style="flex:none;padding:8px 16px;">＋ 5 linhas</button>
+        <button class="btn btn-secondary" onclick="clearBatchGrid()" style="flex:none;padding:8px 16px;">✕ Limpar</button>
+        <button class="btn btn-primary" onclick="saveBatchRecords()" id="saveBatchBtn" style="flex:none;padding:11px 28px;margin-left:auto;">💾 Guardar Todos no SharePoint</button>
+      </div>
+      <div id="batchAddResult" style="display:none;margin-top:12px;"></div>
     </div>
   </div>
 </div>
@@ -975,8 +1031,11 @@ async function refreshData() {
 function showTab(tab){
   document.getElementById('searchTab').style.display=tab==='search'?'flex':'none';
   document.getElementById('addTab').classList.toggle('visible',tab==='add');
+  document.getElementById('batchAddTab').classList.toggle('visible',tab==='batchAdd');
   document.getElementById('tabSearchBtn').classList.toggle('active',tab==='search');
   document.getElementById('tabAddBtn').classList.toggle('active',tab==='add');
+  document.getElementById('tabBatchAddBtn').classList.toggle('active',tab==='batchAdd');
+  if(tab==='batchAdd' && document.getElementById('batchAddBody').children.length===0) initBatchGrid();
 }
 
 function showLoading(msg){document.getElementById('loadingMsg').textContent=msg||'A carregar...';document.getElementById('loadingOverlay').classList.add('visible');}
@@ -986,6 +1045,222 @@ function setSyncStatus(state,msg){document.getElementById('syncDot').className='
 function showFormError(msg){const el=document.getElementById('formError');el.textContent=msg;el.classList.add('visible');setTimeout(()=>el.classList.remove('visible'),5000);}
 function clearForm(){['newSupplier','newRef','newHscode','newDesc','newOrigin','newDU','newAdicional','newCDAW'].forEach(id=>document.getElementById(id).value='');document.getElementById('formError').classList.remove('visible');}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+// ── BATCH ADD ─────────────────────────────────────────────────────────────────
+const BATCH_COLS = [
+  {key:'SUPLIER',     label:'Fornecedor *',  placeholder:'ex: CJ FOODS'},
+  {key:'REFERENCE',   label:'Referência *',  placeholder:'ex: 034644'},
+  {key:'HSCODE',      label:'HS Code *',     placeholder:'ex: 1902301080'},
+  {key:'DESCRIPTION', label:'Descrição *',   placeholder:'ex: INSTANT NOODLES'},
+  {key:'ORIGIN',      label:'Origem',        placeholder:'ex: KR'},
+  {key:'DU',          label:'DU',            placeholder:'ex: PT'},
+  {key:'Adicional',   label:'Adicional',     placeholder:'ex: 7000'},
+  {key:'CD AW',       label:'CD AW',         placeholder:'ex: C'},
+];
+
+function createBatchRow() {
+  const tr = document.createElement('tr');
+  const numTd = document.createElement('td');
+  numTd.className = 'row-num-cell';
+  tr.appendChild(numTd);
+  BATCH_COLS.forEach(col => {
+    const td = document.createElement('td');
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = col.placeholder;
+    inp.addEventListener('paste', handleBatchPaste);
+    inp.addEventListener('keydown', handleBatchKeydown);
+    td.appendChild(inp);
+    tr.appendChild(td);
+  });
+  const statusTd = document.createElement('td');
+  statusTd.className = 'batch-status-cell';
+  tr.appendChild(statusTd);
+  const delTd = document.createElement('td');
+  delTd.style.cssText = 'width:32px;text-align:center;padding:0;border-right:none;';
+  const delBtn = document.createElement('button');
+  delBtn.className = 'del-row-btn';
+  delBtn.title = 'Remover linha';
+  delBtn.textContent = '×';
+  delBtn.onclick = () => { tr.remove(); updateBatchRowNumbers(); };
+  delTd.appendChild(delBtn);
+  tr.appendChild(delTd);
+  return tr;
+}
+
+function updateBatchRowNumbers() {
+  [...document.getElementById('batchAddBody').children].forEach((tr, i) => {
+    const cell = tr.querySelector('.row-num-cell');
+    if (cell) cell.textContent = i + 1;
+  });
+}
+
+function initBatchGrid(n=12) {
+  const tbody = document.getElementById('batchAddBody');
+  tbody.innerHTML = '';
+  for (let i = 0; i < n; i++) tbody.appendChild(createBatchRow());
+  updateBatchRowNumbers();
+}
+
+function addBatchRows(n=5) {
+  const tbody = document.getElementById('batchAddBody');
+  for (let i = 0; i < n; i++) tbody.appendChild(createBatchRow());
+  updateBatchRowNumbers();
+}
+
+function clearBatchGrid() {
+  document.getElementById('batchAddBody').querySelectorAll('input').forEach(inp => inp.value = '');
+  document.getElementById('batchAddBody').querySelectorAll('tr').forEach(tr => {
+    tr.className = '';
+    const s = tr.querySelector('.batch-status-cell');
+    if (s) s.innerHTML = '';
+  });
+  document.getElementById('batchAddResult').style.display = 'none';
+}
+
+function getBatchRowCol(inp) {
+  const tr = inp.closest('tr');
+  const tbody = document.getElementById('batchAddBody');
+  const rowIdx = [...tbody.children].indexOf(tr);
+  const inputs = [...tr.querySelectorAll('input')];
+  const colIdx = inputs.indexOf(inp);
+  return { rowIdx, colIdx };
+}
+
+function getBatchInput(rowIdx, colIdx) {
+  if (colIdx < 0 || colIdx >= BATCH_COLS.length) return null;
+  const tbody = document.getElementById('batchAddBody');
+  const tr = tbody.children[rowIdx];
+  if (!tr) return null;
+  return [...tr.querySelectorAll('input')][colIdx] || null;
+}
+
+function handleBatchPaste(e) {
+  e.preventDefault();
+  const raw = (e.clipboardData || window.clipboardData).getData('text');
+  if (!raw) return;
+  const { rowIdx: startRow, colIdx: startCol } = getBatchRowCol(e.target);
+  const tbody = document.getElementById('batchAddBody');
+  const rows = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  if (rows.length && rows[rows.length - 1].trim() === '') rows.pop();
+  const neededRows = startRow + rows.length;
+  while (tbody.children.length < neededRows) tbody.appendChild(createBatchRow());
+  updateBatchRowNumbers();
+  rows.forEach((rowStr, ri) => {
+    rowStr.split('\t').forEach((val, ci) => {
+      const inp = getBatchInput(startRow + ri, startCol + ci);
+      if (inp) inp.value = val.trim();
+    });
+  });
+}
+
+function handleBatchKeydown(e) {
+  if (!['Tab','Enter','ArrowDown','ArrowUp'].includes(e.key)) return;
+  const { rowIdx, colIdx } = getBatchRowCol(e.target);
+  const tbody = document.getElementById('batchAddBody');
+  let next = null;
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    if (e.shiftKey) {
+      next = getBatchInput(rowIdx, colIdx - 1) || getBatchInput(rowIdx - 1, BATCH_COLS.length - 1);
+    } else {
+      next = getBatchInput(rowIdx, colIdx + 1);
+      if (!next) {
+        if (rowIdx + 1 >= tbody.children.length) { tbody.appendChild(createBatchRow()); updateBatchRowNumbers(); }
+        next = getBatchInput(rowIdx + 1, 0);
+      }
+    }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (rowIdx + 1 >= tbody.children.length) { tbody.appendChild(createBatchRow()); updateBatchRowNumbers(); }
+    next = getBatchInput(rowIdx + 1, colIdx);
+  } else if (e.key === 'ArrowDown') {
+    next = getBatchInput(rowIdx + 1, colIdx);
+  } else if (e.key === 'ArrowUp') {
+    next = getBatchInput(rowIdx - 1, colIdx);
+  }
+  if (next) next.focus();
+}
+
+async function saveBatchRecords() {
+  const tbody = document.getElementById('batchAddBody');
+  const toSave = [...tbody.children].map(tr => {
+    const vals = [...tr.querySelectorAll('input')].map(i => i.value.trim());
+    return { tr, vals };
+  }).filter(({ vals }) => vals.some(v => v));
+
+  if (!toSave.length) { showToast('⚠ Nenhuma linha preenchida'); return; }
+
+  const btn = document.getElementById('saveBatchBtn');
+  btn.disabled = true;
+
+  let saved = 0, errors = 0;
+
+  for (let i = 0; i < toSave.length; i++) {
+    const { tr, vals } = toSave[i];
+    btn.textContent = `⏳ A guardar ${i + 1}/${toSave.length}...`;
+    const statusTd = tr.querySelector('.batch-status-cell');
+
+    const supplier  = (vals[0] || '').toUpperCase();
+    const ref       = (vals[1] || '').toUpperCase();
+    const hscode    = cleanHS(vals[2] || '');
+    const desc      = (vals[3] || '').toUpperCase();
+    const origin    = (vals[4] || '').toUpperCase();
+    const du        = (vals[5] || '').toUpperCase();
+    const adicional = vals[6] || '';
+    const cdaw      = vals[7] || '';
+
+    if (!supplier || !ref || !hscode || !desc) {
+      tr.className = 'row-err';
+      statusTd.innerHTML = '<span class="bst bst-err">campos em falta</span>';
+      errors++; continue;
+    }
+    if (!/^\d{10}$/.test(hscode)) {
+      tr.className = 'row-err';
+      statusTd.innerHTML = '<span class="bst bst-err">HS Code inválido</span>';
+      errors++; continue;
+    }
+    if (allData.find(r => r.REFERENCE === ref && r.HSCODE === hscode)) {
+      tr.className = 'row-err';
+      statusTd.innerHTML = '<span class="bst bst-dup">já existe</span>';
+      errors++; continue;
+    }
+
+    try {
+      statusTd.innerHTML = '<span class="bst bst-saving">⏳ a guardar...</span>';
+      const record = { SUPLIER: supplier, REFERENCE: ref, HSCODE: hscode, DESCRIPTION: desc, ORIGIN: origin, DU: du, Adicional: adicional, 'CD AW': cdaw };
+      await appendRow(record);
+      record._new = true;
+      record._row = -(Date.now() + i);
+      allData.unshift(record);
+      tr.className = 'row-saved';
+      statusTd.innerHTML = '<span class="bst bst-ok">✓ guardado</span>';
+      saved++;
+    } catch(err) {
+      tr.className = 'row-err';
+      statusTd.innerHTML = '<span class="bst bst-err">erro</span>';
+      errors++;
+      console.error('Batch save error:', err);
+    }
+  }
+
+  populateFilters(); applyFilters();
+  setSyncStatus('ok', allData.length.toLocaleString() + ' registos · SharePoint');
+  btn.disabled = false;
+  btn.textContent = '💾 Guardar Todos no SharePoint';
+
+  const resultEl = document.getElementById('batchAddResult');
+  resultEl.style.display = 'block';
+  if (!errors) {
+    resultEl.style.cssText = 'display:block;background:rgba(79,255,176,0.08);border:1px solid var(--accent);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--accent);';
+    resultEl.textContent = `✓ ${saved} registo(s) guardados com sucesso no SharePoint!`;
+    showToast(`✓ ${saved} guardados!`);
+  } else {
+    resultEl.style.cssText = 'display:block;background:rgba(255,184,79,0.08);border:1px solid var(--warn);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--warn);';
+    resultEl.textContent = `${saved} guardados · ${errors} com erro (linhas assinaladas a vermelho)`;
+    showToast(`${saved} guardados, ${errors} com erro`);
+  }
+}
 </script>
 </body>
 </html>
