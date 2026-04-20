@@ -1280,7 +1280,7 @@ async function saveBatchRecords() {
       statusTd.innerHTML = '<span class="bst bst-err">HS Code inválido</span>';
       errors++; continue;
     }
-    if (allData.find(r => r.REFERENCE === ref && r.HSCODE === hscode)) {
+    if (ref !== 'NO REF' && allData.find(r => r.REFERENCE === ref && r.HSCODE === hscode)) {
       tr.className = 'row-err';
       statusTd.innerHTML = '<span class="bst bst-dup">já existe</span>';
       errors++; continue;
