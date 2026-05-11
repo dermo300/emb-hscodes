@@ -289,6 +289,7 @@
                 <th class="check-col"></th>
                 <th>Fornecedor</th><th>Referência</th><th>HS Code</th>
                 <th>Origem</th><th>DU</th><th>Adicional</th><th>CD AW</th><th>Descrição</th>
+                <th class="edit-col"></th>
               </tr>
             </thead>
             <tbody id="tableBody"></tbody>
@@ -453,6 +454,7 @@ let msalApp = null;
 let allData=[], filtered=[], selected=new Map();
 let renderedCount=0; const PAGE=100;
 let driveId=null, fileId=null;
+let tableInitialized=false;
 
 // Initialise MSAL as soon as page loads — before user clicks anything
 async function initApp() {
@@ -472,7 +474,19 @@ async function initApp() {
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
 
     // Handle redirect response (after login redirect)
-    const resp = await msalApp.handleRedirectPromise();
+    let resp = null;
+    try {
+      resp = await msalApp.handleRedirectPromise();
+    } catch(redirectErr) {
+      // Transient MSAL errors (state_not_found, hash_empty_error) after redirect —
+      // clear the hash and let the user try again rather than showing a fatal error.
+      console.warn('MSAL redirect error (recoverable):', redirectErr);
+      if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
+      const el = document.getElementById('loginError');
+      el.textContent = 'Sessão expirada ou interrompida. Por favor tenta entrar novamente.';
+      el.style.display = 'block';
+    }
+
     if (resp && resp.account) {
       msalApp.setActiveAccount(resp.account);
       document.getElementById('userName').textContent = resp.account.name?.split(' ')[0] || resp.account.username;
@@ -537,7 +551,11 @@ async function getToken() {
 async function graphGet(url) {
   const token = await getToken();
   const r = await fetch('https://graph.microsoft.com/v1.0' + url, { headers: { Authorization: 'Bearer ' + token } });
-  if (!r.ok) throw new Error('Graph ' + url + ' → ' + r.status);
+  if (!r.ok) {
+    let detail = r.status;
+    try { const body = await r.json(); detail = body?.error?.message || body?.error?.code || r.status; } catch(_) {}
+    throw new Error('Erro Graph API: ' + detail + ' (' + url.split('/').slice(-2).join('/') + ')');
+  }
   return r.json();
 }
 
@@ -550,8 +568,34 @@ async function onLoggedIn() {
     await loadData();
     setSyncStatus('ok', allData.length.toLocaleString() + ' registos · SharePoint');
   } catch(e) {
-    setSyncStatus('error', 'Erro ao carregar');
-    showToast('⚠ ' + e.message);
+    setSyncStatus('error', e.message);
+    showDataError(e.message);
+    console.error(e);
+  }
+  hideLoading();
+}
+
+function showDataError(msg) {
+  const existing = document.getElementById('dataErrorBanner');
+  if (existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.id = 'dataErrorBanner';
+  banner.style.cssText = 'background:rgba(255,95,109,0.12);border:1px solid rgba(255,95,109,0.4);border-radius:10px;padding:12px 16px;margin:12px 18px;font-size:13px;color:#ff5f6d;display:flex;align-items:center;gap:10px;';
+  banner.innerHTML = `<span style="flex:1">⚠ ${msg}</span><button onclick="retryLoad()" style="background:#ff5f6d;color:#0d0f14;border:none;border-radius:7px;padding:6px 14px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">Tentar Novamente</button><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#ff5f6d;cursor:pointer;font-size:16px;line-height:1;">✕</button>`;
+  const searchTab = document.getElementById('searchTab');
+  searchTab.insertBefore(banner, searchTab.firstChild);
+}
+
+async function retryLoad() {
+  const banner = document.getElementById('dataErrorBanner');
+  if (banner) banner.remove();
+  showLoading('A tentar novamente...');
+  try {
+    await loadData();
+    setSyncStatus('ok', allData.length.toLocaleString() + ' registos · SharePoint');
+  } catch(e) {
+    setSyncStatus('error', e.message);
+    showDataError(e.message);
     console.error(e);
   }
   hideLoading();
@@ -642,11 +686,14 @@ function cleanHS(v) {
 
 function initTable() {
   populateFilters(); applyFilters();
-  document.getElementById('searchInput').addEventListener('input', debounce(applyFilters,180));
-  ['filterSupplier','filterOrigin','filterDU'].forEach(id => document.getElementById(id).addEventListener('change', applyFilters));
-  document.getElementById('tableWrap').addEventListener('scroll', function() {
-    if (this.scrollTop+this.clientHeight >= this.scrollHeight-120) loadMore();
-  });
+  if (!tableInitialized) {
+    document.getElementById('searchInput').addEventListener('input', debounce(applyFilters,180));
+    ['filterSupplier','filterOrigin','filterDU'].forEach(id => document.getElementById(id).addEventListener('change', applyFilters));
+    document.getElementById('tableWrap').addEventListener('scroll', function() {
+      if (this.scrollTop+this.clientHeight >= this.scrollHeight-120) loadMore();
+    });
+    tableInitialized = true;
+  }
 }
 
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
