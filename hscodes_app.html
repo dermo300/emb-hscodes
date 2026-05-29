@@ -5,24 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EMB Food · HS Codes</title>
 <script>
-// Load MSAL from multiple CDN fallbacks
+// Load MSAL with timeout-based CDN fallbacks
+// (alcdn.msauth.net foi descontinuado pela Microsoft - removido)
 (function() {
   var cdns = [
-    'https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js',
-    'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js',
-    'https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js'
+    'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js',
+    'https://unpkg.com/@azure/msal-browser@2.39.0/lib/msal-browser.min.js'
   ];
   var idx = 0;
-  function tryLoad() {
-    if (idx >= cdns.length) {
-      document.getElementById('loginError').textContent = 'Erro: Não foi possível carregar a biblioteca de autenticação. Verifica a ligação à internet.';
-      document.getElementById('loginError').style.display = 'block';
-      return;
+  var currentScript = null;
+  var currentTimer = null;
+
+  function showError() {
+    var el = document.getElementById('loginError');
+    if (el) {
+      el.textContent = 'Erro: Não foi possível carregar a biblioteca de autenticação. Verifica a ligação à internet.';
+      el.style.display = 'block';
     }
+  }
+
+  function tryLoad() {
+    if (idx >= cdns.length) { showError(); return; }
+
     var s = document.createElement('script');
     s.src = cdns[idx++];
-    s.onload = function() { window._msalLoaded = true; };
-    s.onerror = function() { tryLoad(); };
+    s.async = true;
+    currentScript = s;
+
+    // Timeout de 4s por CDN - se ficar pendurado, passa ao próximo
+    currentTimer = setTimeout(function() {
+      if (typeof msal === 'undefined') {
+        s.onload = s.onerror = null;
+        s.remove();
+        tryLoad();
+      }
+    }, 4000);
+
+    s.onload = function() {
+      clearTimeout(currentTimer);
+      window._msalLoaded = true;
+    };
+    s.onerror = function() {
+      clearTimeout(currentTimer);
+      s.remove();
+      tryLoad();
+    };
     document.head.appendChild(s);
   }
   tryLoad();
