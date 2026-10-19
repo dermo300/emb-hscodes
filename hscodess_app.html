@@ -488,7 +488,7 @@ async function initApp() {
       auth: {
         clientId: CLIENT_ID,
         authority: 'https://login.microsoftonline.com/' + TENANT_ID,
-        redirectUri: 'https://dermo300.github.io/emb-hscodes/hscodes_app.html'
+        redirectUri: window.location.origin + window.location.pathname
       },
       cache: { cacheLocation: 'sessionStorage' }
     });
